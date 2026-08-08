@@ -2,7 +2,7 @@ import os
 import discord
 from discord import app_commands
 from discord.ext import tasks
-from cricbuzz import Cricbuzz
+from pycricbuzz import Cricbuzz
 
 TOKEN = os.getenv("DISCORD_TOKEN") or "PASTE_YOUR_BOT_TOKEN"
 
