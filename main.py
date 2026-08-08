@@ -4,7 +4,13 @@ import discord
 from discord import app_commands
 
 TOKEN = os.getenv("DISCORD_TOKEN")
+PROXY = os.getenv("PROXY_URL")
 GUILD_ID = 1521111741193523432
+
+proxies = {
+    "http": PROXY,
+    "https": PROXY,
+}
 
 class Bot(discord.Client):
     def __init__(self):
@@ -14,11 +20,9 @@ class Bot(discord.Client):
     async def setup_hook(self):
         guild = discord.Object(id=GUILD_ID)
 
-        # Remove old commands
         self.tree.clear_commands(guild=guild)
         self.tree.clear_commands(guild=None)
 
-        # Add fresh command
         self.tree.add_command(livesb, guild=guild)
 
         await self.tree.sync(guild=guild)
@@ -27,11 +31,12 @@ class Bot(discord.Client):
 bot = Bot()
 
 def get_live_matches():
-    url = "https://corsproxy.io/?https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/scoreboard"
+    url = "https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/scoreboard"
 
     r = requests.get(
         url,
         headers={"User-Agent": "Mozilla/5.0"},
+        proxies=proxies,
         timeout=20
     )
 
