@@ -43,20 +43,16 @@ def get_live_matches():
 
     return matches
 
-@app_commands.command(name="livesb", description="Show live matches")
+@app_commands.command(name="livesb", description="Test SportsMonks")
 async def livesb(interaction: discord.Interaction):
-    matches = get_live_matches()
+    url = f"{BASE}/fixtures/live?api_token={SPORTSMONKS}"
+    r = requests.get(url, timeout=20)
 
-    if not matches:
-        await interaction.response.send_message(
-            "❌ No live matches found.",
-            ephemeral=True
-        )
-        return
+    await interaction.response.send_message(
+        f"Status: {r.status_code}\n{r.text[:1500]}",
+        ephemeral=True
+    )
 
-    text = "🏏 **Live Matches**\n\n" + "\n".join(matches[:15])
-
-    await interaction.response.send_message(text, ephemeral=True)
 
 @bot.event
 async def on_ready():
