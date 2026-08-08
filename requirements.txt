@@ -1,2 +1,2 @@
 discord.py
-python-cricket-api
+git+https://github.com/raunit-x/cricbuzz.git
