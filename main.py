@@ -26,6 +26,10 @@ bot = Bot()
 def get_live_matches():
     url = f"{BASE}/fixtures/live?api_token={SPORTSMONKS}"
     r = requests.get(url, timeout=20)
+
+    print("STATUS:", r.status_code)
+    print("BODY:", r.text[:500])
+
     data = r.json()
 
     matches = []
