@@ -5,124 +5,93 @@ from discord import app_commands
 from discord.ext import tasks
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 
 client = discord.Client(intents=discord.Intents.default())
 tree = app_commands.CommandTree(client)
 
 active = {}
 
-HEADERS = {
-    "X-RapidAPI-Key": RAPIDAPI_KEY,
-    "X-RapidAPI-Host": "cricbuzz-cricket.p.rapidapi.com"
-}
-
-
 def get_live_matches():
-    url = "https://cricbuzz-cricket.p.rapidapi.com/matches/v1/live"
-
-    r = requests.get(url, headers=HEADERS, timeout=15)
-    data = r.json()
-
-    print("API RESPONSE:", data)
+    url = "https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/scoreboard"
+    data = requests.get(url, timeout=15).json()
 
     matches = []
 
-    for type_match in data.get("typeMatches", []):
-        for series_match in type_match.get("seriesMatches", []):
+    for event in data.get("events", []):
+        match_id = event.get("id")
+        name = event.get("name")
 
-            wrapper = series_match.get("seriesAdWrapper")
-            if not wrapper:
-                continue
+        if match_id and name:
+            matches.append({
+                "id": str(match_id),
+                "name": name
+            })
 
-            for match in wrapper.get("matches", []):
-                info = match.get("matchInfo", {})
-
-                team1 = info.get("team1", {}).get("teamName")
-                team2 = info.get("team2", {}).get("teamName")
-                match_id = info.get("matchId")
-
-                if team1 and team2 and match_id:
-                    matches.append({
-                        "id": str(match_id),
-                        "name": f"{team1} vs {team2}"
-                    })
-
-    print("FOUND MATCHES:", matches)
     return matches
 
-
-def get_score(match_id):
-    url = f"https://cricbuzz-cricket.p.rapidapi.com/mcenter/v1/{match_id}"
-
-    r = requests.get(url, headers=HEADERS, timeout=15)
-    return r.json()
-
+def get_match(match_id):
+    url = f"https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/summary?event={match_id}"
+    return requests.get(url, timeout=15).json()
 
 def build_embed(data):
-    info = data.get("matchInfo", {})
-    scorecard = data.get("scoreCard", [])
+    header = data.get("header", {})
+    status = data.get("status", {})
+    match = data.get("match", {})
 
-    t1 = info.get("team1", {}).get("teamName", "Team 1")
-    t2 = info.get("team2", {}).get("teamName", "Team 2")
+    title = header.get("name", "Live Match")
 
     embed = discord.Embed(
-        title=f"🏏 {t1} vs {t2}",
+        title=f"🏏 {title}",
         color=0x00BFFF
     )
 
-    if scorecard:
-        for innings in scorecard[:2]:
-            team = innings.get("batTeamDetails", {}).get("batTeamName", "Team")
-            score = innings.get("scoreDetails", {})
+    teams = match.get("teams", [])
 
-            runs = score.get("runs", 0)
-            wickets = score.get("wickets", 0)
-            overs = score.get("overs", 0)
+    for t in teams[:2]:
+        team_name = t.get("team", {}).get("displayName", "Team")
 
-            embed.add_field(
-                name=team,
-                value=f"**{runs}/{wickets} ({overs})**",
-                inline=False
-            )
+        score = "Yet to bat"
+
+        if t.get("score"):
+            score = t["score"]
+
+        embed.add_field(
+            name=team_name,
+            value=f"**{score}**",
+            inline=False
+        )
 
     embed.add_field(
         name="Status",
-        value=info.get("status", "Live"),
+        value=status.get("type", {}).get("detail", "Live"),
         inline=False
     )
 
-    embed.set_footer(text="Unofficial Cricbuzz via RapidAPI • Updates every 30s")
-    return embed
+    embed.set_footer(text="Updates every 30 seconds • ESPN feed")
 
+    return embed
 
 class MatchSelect(discord.ui.Select):
     def __init__(self, matches):
-        self.match_map = {m["id"]: m["name"] for m in matches}
+        self.map = {m["id"]: m["name"] for m in matches}
 
         options = [
-            discord.SelectOption(
-                label=m["name"][:100],
-                value=m["id"]
-            )
+            discord.SelectOption(label=m["name"][:100], value=m["id"])
             for m in matches[:25]
         ]
 
-        super().__init__(
-            placeholder="Choose a live match...",
-            options=options
-        )
+        super().__init__(placeholder="Choose a live match...", options=options)
 
     async def callback(self, interaction: discord.Interaction):
         match_id = self.values[0]
-        match_name = self.match_map[match_id]
+        match_name = self.map[match_id]
 
         thread = await interaction.channel.create_thread(
             name=f"🏏 {match_name[:70]}",
             type=discord.ChannelType.public_thread
         )
 
-        data = get_score(match_id)
+        data = get_match(match_id)
 
         msg = await thread.send(embed=build_embed(data))
 
@@ -132,16 +101,14 @@ class MatchSelect(discord.ui.Select):
         }
 
         await interaction.response.send_message(
-            f"📡 Live scoreboard started in {thread.mention}",
+            f"📡 Started in {thread.mention}",
             ephemeral=True
         )
-
 
 class MatchView(discord.ui.View):
     def __init__(self, matches):
         super().__init__(timeout=60)
         self.add_item(MatchSelect(matches))
-
 
 @tree.command(name="livesb", description="Choose a live cricket match")
 async def livesb(interaction: discord.Interaction):
@@ -160,32 +127,24 @@ async def livesb(interaction: discord.Interaction):
         ephemeral=True
     )
 
-
 @tasks.loop(seconds=30)
 async def updater():
-    for msg_id, data in list(active.items()):
-
-        channel = client.get_channel(data["channel_id"])
-
+    for msg_id, info in list(active.items()):
+        channel = client.get_channel(info["channel_id"])
         if channel is None:
             continue
 
         try:
             msg = await channel.fetch_message(msg_id)
-
-            score = get_score(data["match_id"])
-
-            await msg.edit(embed=build_embed(score))
-
+            data = get_match(info["match_id"])
+            await msg.edit(embed=build_embed(data))
         except Exception as e:
-            print("Update failed:", e)
-
+            print(e)
 
 @client.event
 async def on_ready():
     await tree.sync()
     updater.start()
     print(f"Logged in as {client.user}")
-
 
 client.run(TOKEN)
