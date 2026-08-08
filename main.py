@@ -16,43 +16,37 @@ class Bot(discord.Client):
 
     async def setup_hook(self):
         guild = discord.Object(id=GUILD_ID)
+
+        # Remove old commands
         self.tree.clear_commands(guild=guild)
+        self.tree.clear_commands(guild=None)
+
+        # Register fresh command
         self.tree.add_command(livesb, guild=guild)
+
         await self.tree.sync(guild=guild)
         print("Guild commands synced")
 
 bot = Bot()
 
-def get_live_matches():
-    url = f"{BASE}/fixtures/live?api_token={SPORTSMONKS}"
-    r = requests.get(url, timeout=20)
-
-    print("STATUS:", r.status_code)
-    print("BODY:", r.text[:500])
-
-    data = r.json()
-
-    matches = []
-
-    for m in data.get("data", []):
-        name = m.get("name")
-        match_id = m.get("id")
-
-        if name and match_id:
-            matches.append(f"• {name} (ID: {match_id})")
-
-    return matches
-
-@app_commands.command(name="livesb", description="Test SportsMonks")
+@app_commands.command(name="livesb", description="Test SportsMonks API")
 async def livesb(interaction: discord.Interaction):
-    url = f"{BASE}/fixtures/live?api_token={SPORTSMONKS}"
-    r = requests.get(url, timeout=20)
+    try:
+        url = f"{BASE}/fixtures/live?api_token={SPORTSMONKS}"
+        r = requests.get(url, timeout=20)
 
-    await interaction.response.send_message(
-        f"Status: {r.status_code}\n{r.text[:1500]}",
-        ephemeral=True
-    )
+        text = r.text[:1800]  # keep under Discord limit
 
+        await interaction.response.send_message(
+            f"Status: {r.status_code}\n```json\n{text}\n```",
+            ephemeral=True
+        )
+
+    except Exception as e:
+        await interaction.response.send_message(
+            f"Error: {e}",
+            ephemeral=True
+        )
 
 @bot.event
 async def on_ready():
