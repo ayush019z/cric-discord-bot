@@ -1,6 +1,5 @@
 import os
 import requests
-from bs4 import BeautifulSoup
 import discord
 from discord import app_commands
 
@@ -21,53 +20,44 @@ class Bot(discord.Client):
 
 bot = Bot()
 
-def fetch_live_matches():
-    url = "https://www.cricbuzz.com/cricket-match/live-scores"
-    html = requests.get(url, headers={
-        "User-Agent": "Mozilla/5.0"
-    }, timeout=20).text
+def get_live_matches():
+    url = "https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/scoreboard"
 
-    soup = BeautifulSoup(html, "html.parser")
+    r = requests.get(
+        url,
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=20
+    )
+
+    data = r.json()
 
     matches = []
 
-    for a in soup.select("a.cb-lv-scrs-well")[:10]:
-        title = a.select_one("div.text-bold")
-        score = a.select_one("div.cb-lv-scrs-col.text-black")
+    for event in data.get("events", []):
+        name = event.get("name")
 
-        if title:
-            matches.append({
-                "title": title.get_text(" ", strip=True),
-                "score": score.get_text(" ", strip=True) if score else "Live"
-            })
+        status = event.get("status", {}).get("type", {}).get("description", "")
+
+        if name:
+            matches.append(f"• {name} — {status}")
 
     return matches
 
 @app_commands.command(name="livesb", description="Show live cricket matches")
 async def livesb(interaction: discord.Interaction):
     try:
-        matches = fetch_live_matches()
+        matches = get_live_matches()
 
         if not matches:
             await interaction.response.send_message(
-                "❌ No live matches found.",
+                "❌ No matches found.",
                 ephemeral=True
             )
             return
 
-        embed = discord.Embed(
-            title="🏏 Live Cricket Matches",
-            color=0x00BFFF
-        )
+        text = "🏏 **Cricinfo Live Matches**\n\n" + "\n".join(matches[:15])
 
-        for m in matches:
-            embed.add_field(
-                name=m["title"][:256],
-                value=m["score"][:1024],
-                inline=False
-            )
-
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(text, ephemeral=True)
 
     except Exception as e:
         await interaction.response.send_message(
