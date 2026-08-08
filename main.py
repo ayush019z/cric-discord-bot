@@ -30,53 +30,38 @@ class Bot(discord.Client):
 
 bot = Bot()
 
-def get_live_matches():
-    url = "https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/scoreboard"
+@app_commands.command(name="livesb", description="Test proxy with timeout")
+async def livesb(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
 
-    r = requests.get(
-        url,
-        headers={"User-Agent": "Mozilla/5.0"},
-        proxies=proxies,
-        timeout=20
-    )
-
-    data = r.json()
-
-    matches = []
-
-    for event in data.get("events", []):
-        name = event.get("name")
-
-        status = (
-            event.get("status", {})
-            .get("type", {})
-            .get("description", "Live")
+    try:
+        r = requests.get(
+            "https://api.ipify.org?format=json",
+            proxies=proxies,
+            timeout=(5, 10),  # 5s connect, 10s read
+            headers={"User-Agent": "Mozilla/5.0"}
         )
 
-        if name:
-            matches.append(f"• {name} — {status}")
+        await interaction.followup.send(
+            f"✅ Proxy works\\nStatus: {r.status_code}\\nIP: {r.text}",
+            ephemeral=True
+        )
 
-    return matches
+    except requests.exceptions.ConnectTimeout:
+        await interaction.followup.send(
+            "❌ Proxy connection timed out (cannot reach proxy server)",
+            ephemeral=True
+        )
 
-@app_commands.command(name="livesb", description="Show Cricinfo live matches")
-async def livesb(interaction: discord.Interaction):
-    try:
-        matches = get_live_matches()
-
-        if not matches:
-            await interaction.response.send_message(
-                "❌ No matches found.",
-                ephemeral=True
-            )
-            return
-
-        text = "🏏 **Cricinfo Live Matches**\n\n" + "\n".join(matches[:15])
-
-        await interaction.response.send_message(text, ephemeral=True)
+    except requests.exceptions.ReadTimeout:
+        await interaction.followup.send(
+            "❌ Proxy connected but response timed out",
+            ephemeral=True
+        )
 
     except Exception as e:
-        await interaction.response.send_message(
-            f"Error: {e}",
+        await interaction.followup.send(
+            f"❌ Proxy failed: {type(e).__name__}: {e}",
             ephemeral=True
         )
 
