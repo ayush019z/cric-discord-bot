@@ -132,18 +132,15 @@ class MatchView(discord.ui.View):
         super().__init__(timeout=60)
         self.add_item(MatchSelect(matches))
 
-@app_commands.command(name="livesb", description="Debug SportsMonks")
+@app_commands.command(
+    name="livesb",
+    description="Choose an ongoing cricket match"
+)
 async def livesb(interaction: discord.Interaction):
-    token_ok = SPORTSMONKS is not None and len(SPORTSMONKS) > 10
-
-    try:
-        url = f"{BASE}/fixtures/live?api_token={SPORTSMONKS}"
-        r = requests.get(url, timeout=20)
-
-        await interaction.response.send_message(
-            f"Token loaded: {token_ok}\nStatus: {r.status_code}\nBody: {r.text[:200]}",
-            ephemeral=True
-        )
+    await interaction.response.send_message(
+        f"Token starts with: {SPORTSMONKS[:5] if SPORTSMONKS else 'NONE'}",
+        ephemeral=True
+    )
 
     except Exception as e:
         await interaction.response.send_message(
