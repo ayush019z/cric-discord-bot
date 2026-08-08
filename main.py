@@ -132,25 +132,25 @@ class MatchView(discord.ui.View):
         super().__init__(timeout=60)
         self.add_item(MatchSelect(matches))
 
-@app_commands.command(
-    name="livesb",
-    description="Choose an ongoing cricket match"
-)
+@app_commands.command(name="livesb", description="Debug SportsMonks")
 async def livesb(interaction: discord.Interaction):
-    matches = get_live_matches()
+    token_ok = SPORTSMONKS is not None and len(SPORTSMONKS) > 10
 
-    if not matches:
+    try:
+        url = f"{BASE}/fixtures/live?api_token={SPORTSMONKS}"
+        r = requests.get(url, timeout=20)
+
         await interaction.response.send_message(
-            "❌ No ongoing matches found.",
+            f"Token loaded: {token_ok}\nStatus: {r.status_code}\nBody: {r.text[:200]}",
             ephemeral=True
         )
-        return
 
-    await interaction.response.send_message(
-        "Select an ongoing match:",
-        view=MatchView(matches),
-        ephemeral=True
-    )
+    except Exception as e:
+        await interaction.response.send_message(
+            f"Error: {e}",
+            ephemeral=True
+        )
+
 
 @bot.event
 async def on_ready():
