@@ -27,7 +27,7 @@ class Bot(discord.Client):
 bot = Bot()
 
 def get_live_matches():
-    url = "https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/scoreboard"
+    url = "https://corsproxy.io/?https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/scoreboard"
 
     r = requests.get(
         url,
