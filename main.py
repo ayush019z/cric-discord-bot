@@ -3,17 +3,27 @@ import discord
 from discord import app_commands
 
 TOKEN = os.getenv("DISCORD_TOKEN")
+GUILD_ID = 1521111741193523432
 
-client = discord.Client(intents=discord.Intents.default())
-tree = app_commands.CommandTree(client)
+class Bot(discord.Client):
+    def __init__(self):
+        super().__init__(intents=discord.Intents.default())
+        self.tree = app_commands.CommandTree(self)
 
-@tree.command(name="livesb", description="Test command")
-async def livesb(interaction: discord.Interaction):
-    await interaction.response.send_message("🏏 Bot is working!", ephemeral=True)
+    async def setup_hook(self):
+        guild = discord.Object(id=GUILD_ID)
+        self.tree.copy_global_to(guild=guild)
+        await self.tree.sync(guild=guild)
+        print("Guild commands synced")
 
-@client.event
+bot = Bot()
+
+@bot.tree.command(name="pingbot", description="Test command")
+async def pingbot(interaction: discord.Interaction):
+    await interaction.response.send_message("🏏 Working!", ephemeral=True)
+
+@bot.event
 async def on_ready():
-    await tree.sync()
-    print(f"Logged in as {client.user}")
+    print(f"Logged in as {bot.user}")
 
-client.run(TOKEN)
+bot.run(TOKEN)
