@@ -25,20 +25,33 @@ def get_live_matches():
 
     matches = []
 
-    for t in data.get("typeMatches", []):
-        for s in t.get("seriesMatches", []):
-            match = s.get("seriesAdWrapper", {}).get("matches", [])
-            for m in match:
-                info = m.get("matchInfo", {})
+    for type_match in data.get("typeMatches", []):
+        for series_match in type_match.get("seriesMatches", []):
+
+            wrapper = series_match.get("seriesAdWrapper")
+            if not wrapper:
+                continue
+
+            for match in wrapper.get("matches", []):
+                info = match.get("matchInfo", {})
+
+                # Only live matches
+                state = info.get("state", "")
+
+                if state != "Live":
+                    continue
+
                 team1 = info.get("team1", {}).get("teamName")
                 team2 = info.get("team2", {}).get("teamName")
                 match_id = info.get("matchId")
 
-                if team1 and team2:
+                if team1 and team2 and match_id:
                     matches.append({
                         "id": str(match_id),
                         "name": f"{team1} vs {team2}"
                     })
+
+    print("LIVE MATCHES:", matches)
 
     return matches
 
