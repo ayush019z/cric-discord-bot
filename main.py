@@ -29,18 +29,39 @@ class Bot(discord.Client):
 
 bot = Bot()
 
-@app_commands.command(name="livesb", description="Test SportsMonks API")
+@app_commands.command(name="livesb", description="Show live matches")
 async def livesb(interaction: discord.Interaction):
     try:
-        url = f"{BASE}/fixtures/live?api_token={SPORTSMONKS}"
+        url = (
+            f"{BASE}/fixtures?api_token={SPORTSMONKS}"
+            "&filter[status]=LIVE"
+        )
+
         r = requests.get(url, timeout=20)
+        data = r.json()
 
-        text = r.text[:1800]  # keep under Discord limit
+        matches = data.get("data", [])
 
+        if not matches:
+            await interaction.response.send_message(
+                "❌ No LIVE matches found on SportsMonks.",
+                ephemeral=True
+            )
+            return
+
+        text = "🏏 **LIVE Matches**\n\n"
+
+        for m in matches[:15]:
+            text += f"• {m.get('name')}\\n"
+
+        await interaction.response.send_message(text, ephemeral=True)
+
+    except Exception as e:
         await interaction.response.send_message(
-            f"Status: {r.status_code}\n```json\n{text}\n```",
+            f"Error: {e}",
             ephemeral=True
         )
+
 
     except Exception as e:
         await interaction.response.send_message(
