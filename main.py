@@ -19,7 +19,7 @@ class Bot(discord.Client):
         self.tree.clear_commands(guild=guild)
         self.tree.add_command(livesb, guild=guild)
         await self.tree.sync(guild=guild)
-        self.updater.start()
+      
         print("Guild commands synced")
 
 bot = Bot()
