@@ -13,10 +13,16 @@ class Bot(discord.Client):
 
     async def setup_hook(self):
         guild = discord.Object(id=GUILD_ID)
+
+        # Remove old commands
         self.tree.clear_commands(guild=guild)
+        self.tree.clear_commands(guild=None)
+
+        # Add fresh command
         self.tree.add_command(livesb, guild=guild)
+
         await self.tree.sync(guild=guild)
-        print("Commands synced")
+        print("Guild commands synced")
 
 bot = Bot()
 
@@ -36,14 +42,18 @@ def get_live_matches():
     for event in data.get("events", []):
         name = event.get("name")
 
-        status = event.get("status", {}).get("type", {}).get("description", "")
+        status = (
+            event.get("status", {})
+            .get("type", {})
+            .get("description", "Live")
+        )
 
         if name:
             matches.append(f"• {name} — {status}")
 
     return matches
 
-@app_commands.command(name="livesb", description="Show live cricket matches")
+@app_commands.command(name="livesb", description="Show Cricinfo live matches")
 async def livesb(interaction: discord.Interaction):
     try:
         matches = get_live_matches()
