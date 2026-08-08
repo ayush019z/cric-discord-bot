@@ -1,2 +1,2 @@
 discord.py
-git+https://github.com/raunit-x/cricbuzz.git
+pycricbuzz
