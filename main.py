@@ -3,7 +3,6 @@ import discord
 from discord import app_commands
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-GUILD_ID = 1521111741193523432
 
 class Bot(discord.Client):
     def __init__(self):
@@ -11,10 +10,8 @@ class Bot(discord.Client):
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
-        guild = discord.Object(id=GUILD_ID)
-        self.tree.copy_global_to(guild=guild)
-        await self.tree.sync(guild=guild)
-        print("Guild commands synced")
+        await self.tree.sync()
+        print("Commands synced")
 
 bot = Bot()
 
