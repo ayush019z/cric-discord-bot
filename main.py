@@ -24,13 +24,9 @@ class Bot(discord.Client):
 bot = Bot()
 
 def get_live_matches():
-    url = (
-        f"{BASE}/fixtures?api_token={SPORTSMONKS}"
-        "&filter[status]=LIVE,IN_PROGRESS,1ST_INNINGS,2ND_INNINGS,3RD_INNINGS,4TH_INNINGS"
-        "&include=participants"
-    )
-
-    data = requests.get(url, timeout=20).json()
+    url = f"{BASE}/fixtures/live?api_token={SPORTSMONKS}"
+    r = requests.get(url, timeout=20)
+    data = r.json()
 
     matches = []
 
@@ -39,115 +35,24 @@ def get_live_matches():
         match_id = m.get("id")
 
         if name and match_id:
-            matches.append({
-                "id": str(match_id),
-                "name": name
-            })
+            matches.append(f"• {name} (ID: {match_id})")
 
     return matches
 
-def get_match(match_id):
-    url = (
-        f"{BASE}/fixtures/{match_id}?api_token={SPORTSMONKS}"
-        "&include=runs,participants"
-    )
-
-    data = requests.get(url, timeout=20).json()
-
-    return data.get("data", {})
-
-def build_embed(data):
-    embed = discord.Embed(
-        title=f"🏏 {data.get('name', 'Live Match')}",
-        color=0x00BFFF
-    )
-
-    runs = data.get("runs", [])
-
-    if runs:
-        for r in runs[:2]:
-            team = r.get("team", {}).get("name", "Team")
-
-            score = (
-                f"{r.get('score', 0)}/"
-                f"{r.get('wickets', 0)} "
-                f"({r.get('overs', 0)})"
-            )
-
-            embed.add_field(
-                name=team,
-                value=f"**{score}**",
-                inline=False
-            )
-    else:
-        embed.description = "Score not available yet."
-
-    embed.add_field(
-        name="Status",
-        value=str(data.get("status", "In Progress")),
-        inline=False
-    )
-
-    embed.set_footer(text="SportsMonks • Ongoing cricket matches")
-
-    return embed
-
-class MatchSelect(discord.ui.Select):
-    def __init__(self, matches):
-        self.map = {m["id"]: m["name"] for m in matches}
-
-        options = [
-            discord.SelectOption(
-                label=m["name"][:100],
-                value=m["id"]
-            )
-            for m in matches[:25]
-        ]
-
-        super().__init__(
-            placeholder="Choose an ongoing match...",
-            options=options
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        match_id = self.values[0]
-        match_name = self.map[match_id]
-
-        thread = await interaction.channel.create_thread(
-            name=f"🏏 {match_name[:70]}",
-            type=discord.ChannelType.public_thread
-        )
-
-        data = get_match(match_id)
-
-        await thread.send(embed=build_embed(data))
-
-        await interaction.response.send_message(
-            f"📡 Scoreboard posted in {thread.mention}",
-            ephemeral=True
-        )
-
-class MatchView(discord.ui.View):
-    def __init__(self, matches):
-        super().__init__(timeout=60)
-        self.add_item(MatchSelect(matches))
-
-@app_commands.command(
-    name="livesb",
-    description="Choose an ongoing cricket match"
-)
+@app_commands.command(name="livesb", description="Show live matches")
 async def livesb(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        f"Token starts with: {SPORTSMONKS[:5] if SPORTSMONKS else 'NONE'}",
-        ephemeral=True
-    )
+    matches = get_live_matches()
 
-    except Exception as e:
+    if not matches:
         await interaction.response.send_message(
-            f"Error: {e}",
+            "❌ No live matches found.",
             ephemeral=True
         )
+        return
 
+    text = "🏏 **Live Matches**\n\n" + "\n".join(matches[:15])
+
+    await interaction.response.send_message(text, ephemeral=True)
 
 @bot.event
 async def on_ready():
