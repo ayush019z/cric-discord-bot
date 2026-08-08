@@ -13,7 +13,8 @@ active = {}
 
 def get_live_matches():
     url = "https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/scoreboard"
-    data = requests.get(url, timeout=15).json()
+    r = requests.get(url, timeout=15)
+    data = r.json()
 
     matches = []
 
@@ -31,7 +32,8 @@ def get_live_matches():
 
 def get_match(match_id):
     url = f"https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/summary?event={match_id}"
-    return requests.get(url, timeout=15).json()
+    r = requests.get(url, timeout=15)
+    return r.json()
 
 def build_embed(data):
     header = data.get("header", {})
@@ -40,26 +42,19 @@ def build_embed(data):
 
     title = header.get("name", "Live Match")
 
-    embed = discord.Embed(
-        title=f"🏏 {title}",
-        color=0x00BFFF
-    )
+    embed = discord.Embed(title=f"🏏 {title}", color=0x00BFFF)
 
     teams = match.get("teams", [])
 
+    if not teams:
+        embed.description = "Score data not available yet."
+        return embed
+
     for t in teams[:2]:
         team_name = t.get("team", {}).get("displayName", "Team")
+        score = t.get("score") or "Yet to bat"
 
-        score = "Yet to bat"
-
-        if t.get("score"):
-            score = t["score"]
-
-        embed.add_field(
-            name=team_name,
-            value=f"**{score}**",
-            inline=False
-        )
+        embed.add_field(name=team_name, value=f"**{score}**", inline=False)
 
     embed.add_field(
         name="Status",
@@ -67,8 +62,7 @@ def build_embed(data):
         inline=False
     )
 
-    embed.set_footer(text="Updates every 30 seconds • ESPN feed")
-
+    embed.set_footer(text="Updates every 30s • ESPN feed")
     return embed
 
 class MatchSelect(discord.ui.Select):
@@ -83,27 +77,36 @@ class MatchSelect(discord.ui.Select):
         super().__init__(placeholder="Choose a live match...", options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        match_id = self.values[0]
-        match_name = self.map[match_id]
+        try:
+            match_id = self.values[0]
+            match_name = self.map[match_id]
 
-        thread = await interaction.channel.create_thread(
-            name=f"🏏 {match_name[:70]}",
-            type=discord.ChannelType.public_thread
-        )
+            thread = await interaction.channel.create_thread(
+                name=f"🏏 {match_name[:70]}",
+                type=discord.ChannelType.public_thread
+            )
 
-        data = get_match(match_id)
+            data = get_match(match_id)
 
-        msg = await thread.send(embed=build_embed(data))
+            msg = await thread.send(embed=build_embed(data))
 
-        active[msg.id] = {
-            "match_id": match_id,
-            "channel_id": thread.id
-        }
+            active[msg.id] = {
+                "match_id": match_id,
+                "channel_id": thread.id
+            }
 
-        await interaction.response.send_message(
-            f"📡 Started in {thread.mention}",
-            ephemeral=True
-        )
+            await interaction.response.send_message(
+                f"📡 Started in {thread.mention}",
+                ephemeral=True
+            )
+
+        except Exception as e:
+            print("Callback error:", e)
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    f"❌ Error: {e}",
+                    ephemeral=True
+                )
 
 class MatchView(discord.ui.View):
     def __init__(self, matches):
@@ -112,25 +115,33 @@ class MatchView(discord.ui.View):
 
 @tree.command(name="livesb", description="Choose a live cricket match")
 async def livesb(interaction: discord.Interaction):
-    matches = get_live_matches()
+    try:
+        await interaction.response.defer(ephemeral=True)
 
-    if not matches:
-        await interaction.response.send_message(
-            "❌ No live matches found.",
-            ephemeral=True
+        matches = get_live_matches()
+
+        if not matches:
+            await interaction.followup.send("❌ No live matches found.")
+            return
+
+        await interaction.followup.send(
+            "Select a live match:",
+            view=MatchView(matches)
         )
-        return
 
-    await interaction.response.send_message(
-        "Select a live match:",
-        view=MatchView(matches),
-        ephemeral=True
-    )
+    except Exception as e:
+        print("Command error:", e)
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                f"❌ Error: {e}",
+                ephemeral=True
+            )
 
 @tasks.loop(seconds=30)
 async def updater():
     for msg_id, info in list(active.items()):
         channel = client.get_channel(info["channel_id"])
+
         if channel is None:
             continue
 
@@ -139,7 +150,7 @@ async def updater():
             data = get_match(info["match_id"])
             await msg.edit(embed=build_embed(data))
         except Exception as e:
-            print(e)
+            print("Update error:", e)
 
 @client.event
 async def on_ready():
