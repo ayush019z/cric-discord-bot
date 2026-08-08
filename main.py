@@ -12,8 +12,9 @@ tree = app_commands.CommandTree(client)
 active = {}
 
 def get_live_matches():
-    url = "https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/scoreboard"
-    r = requests.get(url, timeout=15)
+    url = "https://corsproxy.io/?https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/scoreboard"
+
+    r = requests.get(url, timeout=20)
     data = r.json()
 
     matches = []
@@ -31,8 +32,9 @@ def get_live_matches():
     return matches
 
 def get_match(match_id):
-    url = f"https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/summary?event={match_id}"
-    r = requests.get(url, timeout=15)
+    url = f"https://corsproxy.io/?https://site.api.espncricinfo.com/apis/site/v2/sports/cricket/summary?event={match_id}"
+
+    r = requests.get(url, timeout=20)
     return r.json()
 
 def build_embed(data):
@@ -42,7 +44,10 @@ def build_embed(data):
 
     title = header.get("name", "Live Match")
 
-    embed = discord.Embed(title=f"🏏 {title}", color=0x00BFFF)
+    embed = discord.Embed(
+        title=f"🏏 {title}",
+        color=0x00BFFF
+    )
 
     teams = match.get("teams", [])
 
@@ -54,7 +59,11 @@ def build_embed(data):
         team_name = t.get("team", {}).get("displayName", "Team")
         score = t.get("score") or "Yet to bat"
 
-        embed.add_field(name=team_name, value=f"**{score}**", inline=False)
+        embed.add_field(
+            name=team_name,
+            value=f"**{score}**",
+            inline=False
+        )
 
     embed.add_field(
         name="Status",
@@ -63,6 +72,7 @@ def build_embed(data):
     )
 
     embed.set_footer(text="Updates every 30s • ESPN feed")
+
     return embed
 
 class MatchSelect(discord.ui.Select):
@@ -70,11 +80,17 @@ class MatchSelect(discord.ui.Select):
         self.map = {m["id"]: m["name"] for m in matches}
 
         options = [
-            discord.SelectOption(label=m["name"][:100], value=m["id"])
+            discord.SelectOption(
+                label=m["name"][:100],
+                value=m["id"]
+            )
             for m in matches[:25]
         ]
 
-        super().__init__(placeholder="Choose a live match...", options=options)
+        super().__init__(
+            placeholder="Choose a live match...",
+            options=options
+        )
 
     async def callback(self, interaction: discord.Interaction):
         try:
@@ -96,12 +112,13 @@ class MatchSelect(discord.ui.Select):
             }
 
             await interaction.response.send_message(
-                f"📡 Started in {thread.mention}",
+                f"📡 Live scoreboard started in {thread.mention}",
                 ephemeral=True
             )
 
         except Exception as e:
             print("Callback error:", e)
+
             if not interaction.response.is_done():
                 await interaction.response.send_message(
                     f"❌ Error: {e}",
@@ -131,6 +148,7 @@ async def livesb(interaction: discord.Interaction):
 
     except Exception as e:
         print("Command error:", e)
+
         if not interaction.response.is_done():
             await interaction.response.send_message(
                 f"❌ Error: {e}",
@@ -140,6 +158,7 @@ async def livesb(interaction: discord.Interaction):
 @tasks.loop(seconds=30)
 async def updater():
     for msg_id, info in list(active.items()):
+
         channel = client.get_channel(info["channel_id"])
 
         if channel is None:
@@ -147,8 +166,11 @@ async def updater():
 
         try:
             msg = await channel.fetch_message(msg_id)
+
             data = get_match(info["match_id"])
+
             await msg.edit(embed=build_embed(data))
+
         except Exception as e:
             print("Update error:", e)
 
